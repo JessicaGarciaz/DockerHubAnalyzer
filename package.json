@@ -1,0 +1,24 @@
+{
+  "name": "dockerhub-analyzer",
+  "version": "0.1.0",
+  "description": "Analyze Docker Hub repositories and extract insights",
+  "main": "analyzer.js",
+  "scripts": {
+    "start": "node analyzer.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "docker",
+    "dockerhub",
+    "security",
+    "analysis",
+    "containers"
+  ],
+  "author": "JessicaGarciaz",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.6.0",
+    "commander": "^11.0.0",
+    "fs-extra": "^11.1.0"
+  }
+}
