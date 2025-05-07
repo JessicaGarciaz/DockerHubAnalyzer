@@ -4,6 +4,7 @@ const { Command } = require('commander');
 const axios = require('axios');
 const fs = require('fs-extra');
 const path = require('path');
+const logger = require('./utils/logger');
 
 class DockerHubAnalyzer {
     constructor() {
@@ -13,7 +14,7 @@ class DockerHubAnalyzer {
 
     async analyzeImage(imageName) {
         try {
-            console.log(`Analyzing Docker image: ${imageName}`);
+            logger.info(`Starting analysis for Docker image: ${imageName}`);
             
             const [repository, tag = 'latest'] = imageName.split(':');
             const repoInfo = await this.getRepositoryInfo(repository);
@@ -25,17 +26,26 @@ class DockerHubAnalyzer {
             console.log(`Pulls: ${repoInfo.pull_count || 0}`);
             console.log(`Last Updated: ${repoInfo.last_updated || 'Unknown'}`);
             
+            logger.info(`Successfully analyzed image: ${imageName}`);
             return repoInfo;
         } catch (error) {
-            console.error(`Error analyzing image: ${error.message}`);
-            process.exit(1);
+            logger.error(`Failed to analyze image ${imageName}: ${error.message}`);
+            throw error;
         }
     }
 
     async getRepositoryInfo(repository) {
-        const url = `${this.hubBase}/repositories/${repository}/`;
-        const response = await axios.get(url);
-        return response.data;
+        try {
+            const url = `${this.hubBase}/repositories/${repository}/`;
+            logger.info(`Fetching repository info from: ${url}`);
+            const response = await axios.get(url);
+            return response.data;
+        } catch (error) {
+            if (error.response && error.response.status === 404) {
+                throw new Error(`Repository '${repository}' not found on Docker Hub`);
+            }
+            throw new Error(`Failed to fetch repository info: ${error.message}`);
+        }
     }
 }
 
@@ -50,12 +60,17 @@ program
     .option('-i, --image <image>', 'Docker image to analyze')
     .action(async (options) => {
         if (!options.image) {
-            console.error('Please specify an image with --image option');
+            logger.error('No image specified. Use --image option.');
             process.exit(1);
         }
         
         const analyzer = new DockerHubAnalyzer();
-        await analyzer.analyzeImage(options.image);
+        try {
+            await analyzer.analyzeImage(options.image);
+        } catch (error) {
+            logger.error(`Analysis failed: ${error.message}`);
+            process.exit(1);
+        }
     });
 
 program.parse();
