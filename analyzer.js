@@ -5,11 +5,13 @@ const axios = require('axios');
 const fs = require('fs-extra');
 const path = require('path');
 const logger = require('./utils/logger');
+const ImageAnalyzer = require('./lib/imageAnalyzer');
 
 class DockerHubAnalyzer {
     constructor() {
         this.apiBase = 'https://registry.hub.docker.com/v2';
         this.hubBase = 'https://hub.docker.com/v2';
+        this.imageAnalyzer = new ImageAnalyzer();
     }
 
     async analyzeImage(imageName) {
@@ -25,6 +27,21 @@ class DockerHubAnalyzer {
             console.log(`Stars: ${repoInfo.star_count || 0}`);
             console.log(`Pulls: ${repoInfo.pull_count || 0}`);
             console.log(`Last Updated: ${repoInfo.last_updated || 'Unknown'}`);
+            
+            try {
+                const layerInfo = await this.imageAnalyzer.analyzeImageLayers(repository, tag);
+                console.log('\n=== Layer Analysis ===');
+                console.log(`Total Layers: ${layerInfo.layerCount}`);
+                console.log(`Total Size: ${this.imageAnalyzer.formatSize(layerInfo.totalSize)}`);
+                console.log('\nLayer Details:');
+                layerInfo.layers.forEach(layer => {
+                    console.log(`  Layer ${layer.index}: ${this.imageAnalyzer.formatSize(layer.size)}`);
+                });
+            } catch (layerError) {
+                logger.warn(`Layer analysis failed: ${layerError.message}`);
+                console.log('\n=== Layer Analysis ===');
+                console.log('Layer analysis unavailable for this image');
+            }
             
             logger.info(`Successfully analyzed image: ${imageName}`);
             return repoInfo;
