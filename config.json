@@ -1,0 +1,21 @@
+{
+  "registry": {
+    "baseUrl": "https://registry-1.docker.io/v2",
+    "authUrl": "https://auth.docker.io/token",
+    "timeout": 10000
+  },
+  "dockerHub": {
+    "baseUrl": "https://hub.docker.com/v2",
+    "timeout": 5000
+  },
+  "output": {
+    "format": "console",
+    "logFile": "analyzer.log",
+    "verbose": false
+  },
+  "analysis": {
+    "includeLayerDetails": true,
+    "maxLayers": 100,
+    "timeout": 30000
+  }
+}

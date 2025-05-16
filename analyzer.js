@@ -6,12 +6,14 @@ const fs = require('fs-extra');
 const path = require('path');
 const logger = require('./utils/logger');
 const ImageAnalyzer = require('./lib/imageAnalyzer');
+const Config = require('./lib/config');
 
 class DockerHubAnalyzer {
-    constructor() {
+    constructor(configPath = null) {
+        this.config = new Config(configPath);
         this.apiBase = 'https://registry.hub.docker.com/v2';
-        this.hubBase = 'https://hub.docker.com/v2';
-        this.imageAnalyzer = new ImageAnalyzer();
+        this.hubBase = this.config.get('dockerHub.baseUrl', 'https://hub.docker.com/v2');
+        this.imageAnalyzer = new ImageAnalyzer(this.config);
     }
 
     async analyzeImage(imageName) {
@@ -28,19 +30,29 @@ class DockerHubAnalyzer {
             console.log(`Pulls: ${repoInfo.pull_count || 0}`);
             console.log(`Last Updated: ${repoInfo.last_updated || 'Unknown'}`);
             
-            try {
-                const layerInfo = await this.imageAnalyzer.analyzeImageLayers(repository, tag);
-                console.log('\n=== Layer Analysis ===');
-                console.log(`Total Layers: ${layerInfo.layerCount}`);
-                console.log(`Total Size: ${this.imageAnalyzer.formatSize(layerInfo.totalSize)}`);
-                console.log('\nLayer Details:');
-                layerInfo.layers.forEach(layer => {
-                    console.log(`  Layer ${layer.index}: ${this.imageAnalyzer.formatSize(layer.size)}`);
-                });
-            } catch (layerError) {
-                logger.warn(`Layer analysis failed: ${layerError.message}`);
-                console.log('\n=== Layer Analysis ===');
-                console.log('Layer analysis unavailable for this image');
+            if (this.config.get('analysis.includeLayerDetails', true)) {
+                try {
+                    const layerInfo = await this.imageAnalyzer.analyzeImageLayers(repository, tag);
+                    console.log('\n=== Layer Analysis ===');
+                    console.log(`Total Layers: ${layerInfo.layerCount}`);
+                    console.log(`Total Size: ${this.imageAnalyzer.formatSize(layerInfo.totalSize)}`);
+                    
+                    const maxLayers = this.config.get('analysis.maxLayers', 100);
+                    const layersToShow = layerInfo.layers.slice(0, maxLayers);
+                    
+                    console.log('\nLayer Details:');
+                    layersToShow.forEach(layer => {
+                        console.log(`  Layer ${layer.index}: ${this.imageAnalyzer.formatSize(layer.size)}`);
+                    });
+                    
+                    if (layerInfo.layers.length > maxLayers) {
+                        console.log(`  ... and ${layerInfo.layers.length - maxLayers} more layers`);
+                    }
+                } catch (layerError) {
+                    logger.warn(`Layer analysis failed: ${layerError.message}`);
+                    console.log('\n=== Layer Analysis ===');
+                    console.log('Layer analysis unavailable for this image');
+                }
             }
             
             logger.info(`Successfully analyzed image: ${imageName}`);
@@ -75,13 +87,20 @@ program
 
 program
     .option('-i, --image <image>', 'Docker image to analyze')
+    .option('-c, --config <path>', 'Config file path')
+    .option('-v, --verbose', 'Enable verbose logging')
     .action(async (options) => {
         if (!options.image) {
             logger.error('No image specified. Use --image option.');
             process.exit(1);
         }
         
-        const analyzer = new DockerHubAnalyzer();
+        const analyzer = new DockerHubAnalyzer(options.config);
+        
+        if (options.verbose) {
+            analyzer.config.set('output.verbose', true);
+        }
+        
         try {
             await analyzer.analyzeImage(options.image);
         } catch (error) {
