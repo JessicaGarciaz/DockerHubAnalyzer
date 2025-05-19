@@ -82,23 +82,25 @@ const program = new Command();
 
 program
     .name('dockerhub-analyzer')
-    .description('Analyze Docker Hub repositories')
+    .description('Analyze Docker Hub repositories and extract insights')
     .version('0.1.0');
 
 program
-    .option('-i, --image <image>', 'Docker image to analyze')
-    .option('-c, --config <path>', 'Config file path')
+    .command('analyze')
+    .description('Analyze a Docker image')
+    .requiredOption('-i, --image <image>', 'Docker image to analyze (e.g., nginx:latest)')
+    .option('-c, --config <path>', 'Custom config file path')
     .option('-v, --verbose', 'Enable verbose logging')
+    .option('--no-layers', 'Skip layer analysis')
     .action(async (options) => {
-        if (!options.image) {
-            logger.error('No image specified. Use --image option.');
-            process.exit(1);
-        }
-        
         const analyzer = new DockerHubAnalyzer(options.config);
         
         if (options.verbose) {
             analyzer.config.set('output.verbose', true);
+        }
+        
+        if (!options.layers) {
+            analyzer.config.set('analysis.includeLayerDetails', false);
         }
         
         try {
@@ -106,6 +108,55 @@ program
         } catch (error) {
             logger.error(`Analysis failed: ${error.message}`);
             process.exit(1);
+        }
+    });
+
+program
+    .command('config')
+    .description('Show current configuration')
+    .option('-c, --config <path>', 'Config file path')
+    .action((options) => {
+        const config = new Config(options.config);
+        console.log('Current Configuration:');
+        console.log(JSON.stringify(config.config, null, 2));
+    });
+
+program
+    .command('info')
+    .description('Show tool information and examples')
+    .action(() => {
+        console.log('DockerHub Analyzer v0.1.0');
+        console.log('');
+        console.log('Examples:');
+        console.log('  dockerhub-analyzer analyze -i nginx');
+        console.log('  dockerhub-analyzer analyze -i ubuntu:20.04 --verbose');
+        console.log('  dockerhub-analyzer analyze -i redis:alpine --no-layers');
+        console.log('  dockerhub-analyzer config');
+        console.log('');
+        console.log('For more help: dockerhub-analyzer --help');
+    });
+
+// Fallback for backward compatibility
+program
+    .option('-i, --image <image>', '(deprecated) Use "analyze -i <image>" instead')
+    .option('-c, --config <path>', 'Config file path')
+    .option('-v, --verbose', 'Enable verbose logging')
+    .action(async (options) => {
+        if (options.image) {
+            console.log('Note: Direct --image option is deprecated. Use "analyze -i <image>" instead.\n');
+            
+            const analyzer = new DockerHubAnalyzer(options.config);
+            
+            if (options.verbose) {
+                analyzer.config.set('output.verbose', true);
+            }
+            
+            try {
+                await analyzer.analyzeImage(options.image);
+            } catch (error) {
+                logger.error(`Analysis failed: ${error.message}`);
+                process.exit(1);
+            }
         }
     });
 

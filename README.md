@@ -19,11 +19,23 @@ npm install
 ## Usage
 
 ```bash
-# Analyze a Docker image
-node analyzer.js --image nginx
+# Analyze a Docker image (recommended)
+node analyzer.js analyze -i nginx
 
-# Analyze specific tag
-node analyzer.js --image nginx:alpine
+# Analyze specific tag with verbose output
+node analyzer.js analyze -i nginx:alpine --verbose
+
+# Skip layer analysis for faster results
+node analyzer.js analyze -i ubuntu:20.04 --no-layers
+
+# Use custom config file
+node analyzer.js analyze -i redis -c my-config.json
+
+# Show current configuration
+node analyzer.js config
+
+# Show examples and info
+node analyzer.js info
 
 # View help
 node analyzer.js --help

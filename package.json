@@ -4,8 +4,13 @@
   "description": "Analyze Docker Hub repositories and extract insights",
   "main": "analyzer.js",
   "scripts": {
-    "start": "node analyzer.js",
+    "start": "node analyzer.js info",
+    "analyze": "node analyzer.js analyze",
+    "config": "node analyzer.js config",
     "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "bin": {
+    "dockerhub-analyzer": "./analyzer.js"
   },
   "keywords": [
     "docker",
