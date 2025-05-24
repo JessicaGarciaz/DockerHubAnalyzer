@@ -7,6 +7,7 @@ const path = require('path');
 const logger = require('./utils/logger');
 const ImageAnalyzer = require('./lib/imageAnalyzer');
 const Config = require('./lib/config');
+const Validator = require('./lib/validator');
 
 class DockerHubAnalyzer {
     constructor(configPath = null) {
@@ -18,9 +19,12 @@ class DockerHubAnalyzer {
 
     async analyzeImage(imageName) {
         try {
-            logger.info(`Starting analysis for Docker image: ${imageName}`);
+            // Validate and parse image name
+            const imageInfo = Validator.validateImageName(imageName);
+            logger.info(`Starting analysis for Docker image: ${imageInfo.original}`);
             
-            const [repository, tag = 'latest'] = imageName.split(':');
+            const repository = Validator.sanitizeRepositoryName(imageInfo.repository);
+            const tag = imageInfo.tag;
             const repoInfo = await this.getRepositoryInfo(repository);
             
             console.log('\n=== Repository Information ===');
@@ -93,20 +97,26 @@ program
     .option('-v, --verbose', 'Enable verbose logging')
     .option('--no-layers', 'Skip layer analysis')
     .action(async (options) => {
-        const analyzer = new DockerHubAnalyzer(options.config);
-        
-        if (options.verbose) {
-            analyzer.config.set('output.verbose', true);
-        }
-        
-        if (!options.layers) {
-            analyzer.config.set('analysis.includeLayerDetails', false);
-        }
-        
         try {
+            // Validate inputs
+            const configPath = Validator.validateConfigPath(options.config);
+            const analyzer = new DockerHubAnalyzer(configPath);
+            
+            if (options.verbose) {
+                analyzer.config.set('output.verbose', true);
+            }
+            
+            if (!options.layers) {
+                analyzer.config.set('analysis.includeLayerDetails', false);
+            }
+            
             await analyzer.analyzeImage(options.image);
         } catch (error) {
-            logger.error(`Analysis failed: ${error.message}`);
+            if (error.message.includes('Invalid Docker image') || error.message.includes('Config path')) {
+                logger.error(`Input validation failed: ${error.message}`);
+            } else {
+                logger.error(`Analysis failed: ${error.message}`);
+            }
             process.exit(1);
         }
     });
@@ -116,9 +126,15 @@ program
     .description('Show current configuration')
     .option('-c, --config <path>', 'Config file path')
     .action((options) => {
-        const config = new Config(options.config);
-        console.log('Current Configuration:');
-        console.log(JSON.stringify(config.config, null, 2));
+        try {
+            const configPath = Validator.validateConfigPath(options.config);
+            const config = new Config(configPath);
+            console.log('Current Configuration:');
+            console.log(JSON.stringify(config.config, null, 2));
+        } catch (error) {
+            logger.error(`Config operation failed: ${error.message}`);
+            process.exit(1);
+        }
     });
 
 program
@@ -145,16 +161,21 @@ program
         if (options.image) {
             console.log('Note: Direct --image option is deprecated. Use "analyze -i <image>" instead.\n');
             
-            const analyzer = new DockerHubAnalyzer(options.config);
-            
-            if (options.verbose) {
-                analyzer.config.set('output.verbose', true);
-            }
-            
             try {
+                const configPath = Validator.validateConfigPath(options.config);
+                const analyzer = new DockerHubAnalyzer(configPath);
+                
+                if (options.verbose) {
+                    analyzer.config.set('output.verbose', true);
+                }
+                
                 await analyzer.analyzeImage(options.image);
             } catch (error) {
-                logger.error(`Analysis failed: ${error.message}`);
+                if (error.message.includes('Invalid Docker image') || error.message.includes('Config path')) {
+                    logger.error(`Input validation failed: ${error.message}`);
+                } else {
+                    logger.error(`Analysis failed: ${error.message}`);
+                }
                 process.exit(1);
             }
         }
